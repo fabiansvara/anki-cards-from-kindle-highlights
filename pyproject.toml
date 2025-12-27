@@ -23,6 +23,8 @@ classifiers = [
 ]
 dependencies = [
     "typer>=0.15",
+    "openai>=1.0",
+    "pydantic>=2.0",
 ]
 
 [project.optional-dependencies]
@@ -42,6 +44,15 @@ Repository = "https://github.com/fabiansvara/anki-cards-from-kindle-highlights"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/anki_cards_from_kindle_highlights"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src" = ""
+
+[tool.hatch.build]
+include = [
+    "src/anki_cards_from_kindle_highlights/**/*.py",
+    "src/anki_cards_from_kindle_highlights/**/*.txt",
+]
 
 [tool.ruff]
 target-version = "py311"
@@ -100,4 +111,3 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "if __name__ == .__main__.:",
 ]
-
