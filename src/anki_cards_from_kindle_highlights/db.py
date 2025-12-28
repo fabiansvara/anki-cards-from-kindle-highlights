@@ -225,6 +225,24 @@ class ClippingsDatabase:
         """Get all records that have been processed by the LLM (including SKIP)."""
         return self._query_records("pattern IS NOT NULL")
 
+    def reset_all_generations(self) -> int:
+        """Reset all LLM-generated fields to NULL and synced_to_anki to False.
+
+        Returns the number of affected rows.
+        """
+        conn = self._get_connection()
+        cursor = conn.execute("""
+            UPDATE clippings
+            SET pattern = NULL,
+                front = NULL,
+                back = NULL,
+                generated_at = NULL,
+                synced_to_anki = 0
+            WHERE pattern IS NOT NULL OR synced_to_anki = 1
+        """)
+        conn.commit()
+        return cursor.rowcount
+
     def _query_records(self, where_clause: str | None = None) -> list[ClippingRecord]:
         """Query records with an optional WHERE clause."""
         conn = self._get_connection()

@@ -354,6 +354,31 @@ def dump(
     print(f"Exported to: {output_file}")
 
 
+@app.command("reset-generations")
+def reset_generations() -> None:
+    """Reset all LLM-generated fields to NULL and synced_to_anki to False."""
+    db_path = get_db_path()
+    print(f"Database location: {db_path}")
+
+    db = ClippingsDatabase(db_path)
+
+    # Confirm with user
+    confirm = questionary.confirm(
+        "This will reset all generated cards (pattern, front, back, generated_at) "
+        "and set synced_to_anki to False. Continue?"
+    ).ask()
+
+    if not confirm:
+        print("Aborted.")
+        db.close()
+        return
+
+    affected = db.reset_all_generations()
+    db.close()
+
+    print(f"Reset {affected} records")
+
+
 @app.callback()
 def main(
     version: Annotated[
