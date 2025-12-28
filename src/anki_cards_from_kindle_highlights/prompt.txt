@@ -5,52 +5,67 @@ PATTERNS:
 
 1. DISTINCTION (X vs Y)
    - Trigger: Text contrasts two concepts (e.g., "Vision vs Purpose", "Compliance vs Commitment").
-   - Output: Q: "What is the key difference between [A] and [B]?" A: [Contrast].
+   - Output:
+     * Front: "What is the key difference between [A] and [B]?"
+     * Back: The contrast/explanation.
 
 2. MENTAL MODEL (Counter-Intuitive Truths)
-   - Trigger: Explains how the world works, often violating common sense (e.g., "Competition is destructive", "Balance flow not capacity").
-   - Output: Q: "According to the author, why is [Common Belief] wrong regarding [Topic]?" A: [Insight].
+   - Trigger: Explains how the world works, often violating common sense (e.g., "Competition is destructive").
+   - Output:
+     * Front: "According to the author, why is [Common Belief] wrong regarding [Topic]?"
+     * Back: The insight/reasoning.
 
 3. METAPHOR (Analogy)
    - Trigger: Comparisons (e.g., "Sports team vs Family", "Orchestra vs Jazz").
-   - Output: Q: "What metaphor is used to describe [Concept]?" A: [Metaphor + Reasoning].
+   - Output:
+     * Front: "What metaphor is used to describe [Concept]?"
+     * Back: The metaphor + the reasoning behind it.
 
 4. FRAMEWORK (Lists & Archetypes)
    - Trigger: Numbered lists, steps, or named systems (e.g., "The 4As", "5 Focusing Steps").
-   - Output: Q: "What are the [Number] steps/components of [Concept]?" A: [List].
+   - Output:
+     * Front: "What are the [Number] steps/components of [Concept]?"
+     * Back: The list (formatted with newlines).
 
 5. TACTIC (How-To)
-   - Trigger: Direct advice, imperatives, or specific questions the reader should ask themselves.
-   - Output: Q: "In [Situation], what is the recommended action?" A: [Action].
+   - Trigger: Direct advice, imperatives, or specific questions.
+   - Output:
+     * Front: "In [Situation], what is the recommended action?"
+     * Back: The Action + The "Why" (Context). Do not just repeat the imperative.
 
 6. CASE STUDY (Narrative)
    - Trigger: Stories/Anecdotes (e.g., "Netflix 2001 layoffs", "The Beer Game").
-   - Output: Q: "In the story about [Topic], what was the key lesson?" A: [Insight].
+   - Output:
+     * Front: "In the story about [Topic], what was the key lesson?"
+     * Back: The lesson/insight derived from the story.
 
 7. DEFINITION (Terminology)
-   - Trigger: Explanations of terms (e.g., "Bottleneck", "BATNA").
-   - Output: Cloze the term (e.g. "{{c1::Term}}"). Keep definition visible.
+   - Trigger: Explanations or significant mentions of terms (e.g., "Bottleneck", "Gittins Index").
+   - Output:
+     * Front: The original sentence (the original highlight VERBATIM, unchanged, except CLEANED of trailing fragments) with the term clozed (e.g. "The {{c1::Term}} is...").
+     * Back: The official definition of the term.
+     * CONSTRAINT: If the highlight only *mentions* the term but defines it poorly (or trails off), you MUST write a clear, concise DEFINITION yourself from your internal knowledge, and mark it with "Internal Knowledge:".
 
 SKIP CONDITION:
-   - If the text is purely narrative scene-setting, a sentence fragment, or lacks a clear lesson: Mark pattern as "SKIP".
-
+   - If the text is ENTIRELY a fragment or useless scene-setting: Mark "SKIP".
+   - FRAGMENT REPAIR: If the text contains a valid thought but ends in garbage (e.g., "opportunity to exploit the"), DO NOT SKIP. Strip the garbage and process the valid part.
 
 ### EXAMPLES:
 
-Book: The Fifth Discipline
-Highlight: "Vision is concrete (man on moon). Purpose is abstract (advancing capability)."
+Book: Algorithms to Live By
+Highlight: "The Gittins index, then, provides a formal, rigorous justification for preferring the unknown, provided we have some opportunity to exploit the"
 Output: {
-  "pattern": "DISTINCTION",
-  "front": "What is the key difference between Vision and Purpose?",
-  "back": "Vision is concrete (a destination). Purpose is abstract (a reason for being).",
+  "pattern": "DEFINITION",
+  "front": "The {{c1::Gittins index}} provides a formal, rigorous justification for preferring the unknown.",
+  "back": "Internal Knowledge: A dynamic allocation index used in multi-armed bandit problems to calculate the value of 'exploration' vs 'exploitation'.",
 }
 
-Book: The Little Prince
-Highlight: "If you want to build a ship, don't drum up people to collect wood. Instead, teach them to yearn for the vast and endless sea."
+Book: The Effective Executive
+Highlight: "Allocating the best people to the right positions is a crucial, tough job. Systematic"
 Output: {
-  "pattern": "METAPHOR",
-  "front": "What metaphor does the author use to explain the power of Vision over Management?",
-  "back": "The Shipbuilder. (Motivation comes from yearning for the destination, not assigning tasks).",
+  "pattern": "MENTAL_MODEL",
+  "front": "Why do many executives fail to allocate the best people to the right positions?",
+  "back": "They fail because the best people are 'already too busy' with problems rather than opportunities.",
 }
 
 Book: Getting to Yes
@@ -61,20 +76,12 @@ Output: {
   "back": "1. People (Separate from problem)\\n2. Interests (Focus on interests, not positions)\\n3. Options (Invent for mutual gains)",
 }
 
-Book: Getting to Yes
-Highlight: "Don't attack their position, look behind it. When the other side sets forth their position, neither reject it nor accept it."
-Output: {
-  "pattern": "TACTIC",
-  "front": "In negotiation, when the other side digs into a rigid position, what should you do instead of attacking it?",
-  "back": "Look behind it. Treat it as a possible option and search for the underlying interest.",
-}
-
 Book: No Rules Rules
 Highlight: "Eager to make a deal, we’d worked for months just to get Antioco to respond to our calls."
 Output: {
   "pattern": "SKIP",
-  "front": "",
-  "back": "",
+  "front": null,
+  "back": null,
 }
 
 Book: Zero to One
@@ -87,4 +94,4 @@ Output: {
 
 OUTPUT INSTRUCTIONS:
    - You must output a JSON object matching the Schema.
-   - If "SKIP", leave front/back empty.
+   - If "SKIP", leave front/back null.
