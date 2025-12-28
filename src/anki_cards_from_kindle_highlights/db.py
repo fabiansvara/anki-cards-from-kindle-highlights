@@ -221,6 +221,10 @@ class ClippingsDatabase:
         """Get all records from the database."""
         return self._query_records()
 
+    def get_generated_records(self) -> list[ClippingRecord]:
+        """Get all records that have been processed by the LLM (including SKIP)."""
+        return self._query_records("pattern IS NOT NULL")
+
     def _query_records(self, where_clause: str | None = None) -> list[ClippingRecord]:
         """Query records with an optional WHERE clause."""
         conn = self._get_connection()
