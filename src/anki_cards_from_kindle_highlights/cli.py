@@ -243,7 +243,7 @@ def import_clippings(
     print(f"Found {len(highlights)} highlights (filtered out bookmarks/notes)")
 
     # Get unique books
-    books = sorted(c.book_title for c in highlights)
+    books = sorted({c.book_title for c in highlights})
     print(f"Books found: {len(books)}")
     for book in books:
         count = sum(1 for c in highlights if c.book_title == book)
