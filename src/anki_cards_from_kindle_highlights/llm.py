@@ -53,10 +53,6 @@ def llm_highlight_to_card(
             print("Error: Failed to parse LLM response")
             return None
 
-        if card.pattern == "SKIP":
-            print(f"Skipping (LLM decided): {highlight[:30]}...")
-            return None
-
         return card
 
     except Exception as e:

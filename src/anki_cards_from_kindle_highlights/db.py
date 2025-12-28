@@ -42,6 +42,10 @@ class ClippingRecord:
     front: str | None
     back: str | None
 
+    # Timestamps
+    imported_at: datetime
+    generated_at: datetime | None
+
     # Sync status
     synced_to_anki: bool
 
@@ -84,6 +88,10 @@ class ClippingsDatabase:
                 front TEXT,
                 back TEXT,
 
+                -- Timestamps
+                imported_at TEXT NOT NULL,
+                generated_at TEXT,
+
                 -- Sync status
                 synced_to_anki INTEGER NOT NULL DEFAULT 0,
 
@@ -102,14 +110,15 @@ class ClippingsDatabase:
     def insert_clipping(self, clipping: Clipping) -> int | None:
         """Insert a clipping into the database. Returns the row ID or None if duplicate."""
         conn = self._get_connection()
+        now = datetime.now().isoformat()
         try:
             cursor = conn.execute(
                 """
                 INSERT INTO clippings (
                     book_title, author, clipping_type, page,
                     location_start, location_end, date_added, content,
-                    pattern, front, back, synced_to_anki
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0)
+                    pattern, front, back, imported_at, generated_at, synced_to_anki
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, NULL, 0)
                 """,
                 (
                     clipping.book_title,
@@ -120,6 +129,7 @@ class ClippingsDatabase:
                     clipping.location_end,
                     clipping.date_added.isoformat(),
                     clipping.content,
+                    now,
                 ),
             )
             conn.commit()
@@ -133,13 +143,14 @@ class ClippingsDatabase:
     ) -> None:
         """Update the LLM-generated card data for a clipping."""
         conn = self._get_connection()
+        now = datetime.now().isoformat()
         conn.execute(
             """
             UPDATE clippings
-            SET pattern = ?, front = ?, back = ?
+            SET pattern = ?, front = ?, back = ?, generated_at = ?
             WHERE id = ?
             """,
-            (pattern, front, back, record_id),
+            (pattern, front, back, now, record_id),
         )
         conn.commit()
 
@@ -152,9 +163,53 @@ class ClippingsDatabase:
         )
         conn.commit()
 
-    def get_unprocessed_clippings(self) -> list[ClippingRecord]:
-        """Get all clippings that haven't been processed by the LLM yet."""
-        return self._query_records("pattern IS NULL AND content IS NOT NULL")
+    def get_books_with_unprocessed(self) -> list[tuple[str, str | None, int]]:
+        """Get all books that have unprocessed clippings.
+
+        Returns a list of (book_title, author, count) tuples.
+        """
+        conn = self._get_connection()
+        cursor = conn.execute("""
+            SELECT book_title, author, COUNT(*) as count
+            FROM clippings
+            WHERE pattern IS NULL AND content IS NOT NULL
+            GROUP BY book_title, author
+            ORDER BY book_title
+        """)
+        return [
+            (row["book_title"], row["author"], row["count"])
+            for row in cursor.fetchall()
+        ]
+
+    def get_unprocessed_clippings(
+        self, books: list[tuple[str, str | None]] | None = None
+    ) -> list[ClippingRecord]:
+        """Get clippings that haven't been processed by the LLM yet.
+
+        Args:
+            books: Optional list of (book_title, author) tuples to filter by.
+                   If None, returns all unprocessed clippings.
+        """
+        if books is None:
+            return self._query_records("pattern IS NULL AND content IS NOT NULL")
+
+        # Build WHERE clause for specific books
+        conditions = []
+        for book_title, author in books:
+            if author is None:
+                conditions.append(f"(book_title = '{book_title}' AND author IS NULL)")
+            else:
+                # Escape single quotes in strings
+                escaped_title = book_title.replace("'", "''")
+                escaped_author = author.replace("'", "''")
+                conditions.append(
+                    f"(book_title = '{escaped_title}' AND author = '{escaped_author}')"
+                )
+
+        where = (
+            f"pattern IS NULL AND content IS NOT NULL AND ({' OR '.join(conditions)})"
+        )
+        return self._query_records(where)
 
     def get_unsynced_cards(self) -> list[ClippingRecord]:
         """Get all cards that have been processed but not synced to Anki."""
@@ -180,6 +235,7 @@ class ClippingsDatabase:
 
     def _row_to_record(self, row: sqlite3.Row) -> ClippingRecord:
         """Convert a database row to a ClippingRecord."""
+        generated_at_str = row["generated_at"]
         return ClippingRecord(
             id=row["id"],
             book_title=row["book_title"],
@@ -193,5 +249,9 @@ class ClippingsDatabase:
             pattern=row["pattern"],
             front=row["front"],
             back=row["back"],
+            imported_at=datetime.fromisoformat(row["imported_at"]),
+            generated_at=datetime.fromisoformat(generated_at_str)
+            if generated_at_str
+            else None,
             synced_to_anki=bool(row["synced_to_anki"]),
         )
