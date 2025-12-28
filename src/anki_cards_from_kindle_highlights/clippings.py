@@ -40,80 +40,122 @@ AUTHOR_PATTERN = re.compile(r"^(.+?)\s*\(([^)]+)\)\s*$")
 METADATA_PATTERN = re.compile(
     r"- Your (Highlight|Note|Bookmark)"
     r"(?: on page (\d+))?"
-    r"(?: (?:at )?location (\d+)(?:-(\d+))?)?"
+    r"(?: \|? ?(?:at )?location (\d+)(?:-(\d+))?)?"
     r" \| Added on (.+)$"
 )
 
 
 def parse_clippings_file(file_path: Path) -> list[Clipping]:
-    """Parse a Kindle My Clippings.txt file and return a list of Clipping objects."""
-    content = file_path.read_text(encoding="utf-8-sig")  # Handle BOM
+    """
+    Parses a Kindle 'My Clippings.txt' file into structured Clipping objects.
+    """
+    clippings = []
 
-    # Split by the separator
-    entries = content.split("==========")
+    # Updated Regex:
+    # 1. re.IGNORECASE handles "Location" vs "location" and "Page" vs "page"
+    # 2. Page capture is [\w]+ to handle "xi", "iv", etc. without breaking the match
+    metadata_pattern = re.compile(
+        r"- Your (?P<type>Highlight|Note|Bookmark)"
+        r"(?: on page (?P<page_str>[\w]+))?"  # Capture page as string first (e.g. '5' or 'xi')
+        r"\s*\|?"  # Separator
+        r"\s*(?: at)? location (?P<loc_start>\d+)"  # Capture Start Location
+        r"(?:-(?P<loc_end>\d+))?"  # Capture End Location
+        r"\s*\|\s*Added on (?P<date_str>.+)",  # Capture Date
+        re.IGNORECASE,  # Case insensitive flag
+    )
 
-    clippings: list[Clipping] = []
+    try:
+        # utf-8-sig handles the BOM (\ufeff) often found in Kindle files
+        with Path(file_path).open(encoding="utf-8-sig") as f:
+            raw_text = f.read()
+    except FileNotFoundError:
+        print(f"Error: File not found at {file_path}")
+        return []
 
-    for entry in entries:
+    # The delimiter is strictly 10 equals signs
+    raw_entries = raw_text.split("==========")
+
+    for entry in raw_entries:
         entry = entry.strip()
         if not entry:
             continue
 
-        lines = entry.split("\n")
+        lines = entry.splitlines()
         if len(lines) < 2:
             continue
 
-        # Parse title and author
-        title_line = lines[0].strip()
-        # Remove BOM if present
-        title_line = title_line.lstrip("\ufeff")
+        # --- 1. Parse Title and Author ---
+        header_line = lines[0].strip()
+        book_title = header_line
+        author = None
 
-        author: str | None = None
-        book_title = title_line
+        # Split on the *last* parenthesis to handle titles that contain parentheses
+        # e.g. "Book Title (Series Information) (Author Name)"
+        if "(" in header_line and header_line.endswith(")"):
+            split_index = header_line.rfind("(")
+            book_title = header_line[:split_index].strip()
+            author = header_line[split_index + 1 : -1].strip()
 
-        author_match = AUTHOR_PATTERN.match(title_line)
-        if author_match:
-            book_title = author_match.group(1).strip()
-            author = author_match.group(2).strip()
-
-        # Parse metadata line
+        # --- 2. Parse Metadata ---
         metadata_line = lines[1].strip()
-        metadata_match = METADATA_PATTERN.match(metadata_line)
+        match = metadata_pattern.search(metadata_line)
 
-        if not metadata_match:
+        if not match:
+            # Helpful for debugging: print which lines are being skipped
+            # print(f"Skipping malformed metadata: {metadata_line}")
             continue
 
-        clipping_type_str = metadata_match.group(1)
-        clipping_type = ClippingType(clipping_type_str)
+        data = match.groupdict()
 
-        page_str = metadata_match.group(2)
-        page = int(page_str) if page_str else None
+        # Parse Type (capitalize to match Enum values e.g. "Highlight")
+        c_type_str = data["type"].capitalize()
+        try:
+            c_type = ClippingType(c_type_str)
+        except ValueError:
+            # Fallback if unknown type appears
+            continue
 
-        location_start_str = metadata_match.group(3)
-        location_start = int(location_start_str) if location_start_str else 0
+        # Parse Page: Handle "xi" or other non-integers gracefully
+        page = None
+        if data["page_str"]:
+            try:
+                page = int(data["page_str"])
+            except ValueError:
+                # If page is roman numeral (e.g. 'xi'), keep it as None
+                # since the dataclass expects int | None
+                page = None
 
-        location_end_str = metadata_match.group(4)
-        location_end = int(location_end_str) if location_end_str else None
+        # Parse Locations
+        loc_start = int(data["loc_start"])
+        loc_end = int(data["loc_end"]) if data["loc_end"] else None
 
-        date_str = metadata_match.group(5)
-        date_added = _parse_date(date_str)
+        # Parse Date
+        date_str = data["date_str"].strip()
+        try:
+            # Standard Kindle format: "Tuesday, 21 March 2023 22:08:17"
+            date_added = datetime.strptime(date_str, "%A, %d %B %Y %H:%M:%S")
+        except ValueError:
+            # Fallback for slight variations or localized dates
+            date_added = datetime.min
 
-        # Content is everything after the empty line (line index 2+)
-        content_lines = lines[3:] if len(lines) > 3 else []
-        clipping_content = "\n".join(content_lines).strip() or None
+        # --- 3. Parse Content ---
+        content = ""
+        if len(lines) > 2:
+            content_lines = lines[2:]
+            content = "\n".join(content_lines).strip()
 
-        clippings.append(
-            Clipping(
-                book_title=book_title,
-                author=author,
-                clipping_type=clipping_type,
-                page=page,
-                location_start=location_start,
-                location_end=location_end,
-                date_added=date_added,
-                content=clipping_content,
-            )
+        clipping = Clipping(
+            book_title=book_title,
+            author=author,
+            clipping_type=c_type,
+            page=page,
+            location_start=loc_start,
+            location_end=loc_end,
+            date_added=date_added,
+            content=content,
         )
+
+        clippings.append(clipping)
 
     return clippings
 
