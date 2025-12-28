@@ -221,6 +221,11 @@ class ClippingsDatabase:
         """Get all records from the database."""
         return self._query_records()
 
+    def get_record_by_id(self, record_id: int) -> ClippingRecord | None:
+        """Get a single record by its ID."""
+        records = self._query_records(f"id = {record_id}")
+        return records[0] if records else None
+
     def get_generated_records(self) -> list[ClippingRecord]:
         """Get all records that have been processed by the LLM (including SKIP)."""
         return self._query_records("pattern IS NOT NULL")
@@ -239,6 +244,20 @@ class ClippingsDatabase:
                 generated_at = NULL,
                 synced_to_anki = 0
             WHERE pattern IS NOT NULL OR synced_to_anki = 1
+        """)
+        conn.commit()
+        return cursor.rowcount
+
+    def reset_all_synced(self) -> int:
+        """Reset synced_to_anki to False for all records.
+
+        Returns the number of affected rows.
+        """
+        conn = self._get_connection()
+        cursor = conn.execute("""
+            UPDATE clippings
+            SET synced_to_anki = 0
+            WHERE synced_to_anki = 1
         """)
         conn.commit()
         return cursor.rowcount

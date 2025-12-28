@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "anki-cards-from-kindle-highlights"
-version = "0.1.0"
+version = "0.2.0"
 description = "Prompt an LLM to generate Anki cards from Kindle highlights"
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -28,6 +28,7 @@ dependencies = [
     "platformdirs>=4.0",
     "tqdm>=4.0",
     "questionary>=2.0",
+    "requests>=2.0",
 ]
 
 [project.optional-dependencies]
@@ -37,6 +38,7 @@ dev = [
     "mypy>=1.8",
     "ruff>=0.8",
     "pre-commit>=3.6",
+    "types-requests",
 ]
 
 [project.scripts]
@@ -55,6 +57,8 @@ packages = ["src/anki_cards_from_kindle_highlights"]
 include = [
     "src/anki_cards_from_kindle_highlights/**/*.py",
     "src/anki_cards_from_kindle_highlights/**/*.txt",
+    "src/anki_cards_from_kindle_highlights/**/*.html",
+    "src/anki_cards_from_kindle_highlights/**/*.css",
 ]
 
 [tool.ruff]

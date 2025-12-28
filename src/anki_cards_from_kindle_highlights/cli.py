@@ -11,6 +11,12 @@ from openai import OpenAI
 from tqdm import tqdm
 
 from anki_cards_from_kindle_highlights import __version__
+from anki_cards_from_kindle_highlights.anki import (
+    AnkiCard,
+    AnkiConnectError,
+    card_to_anki,
+    setup_anki,
+)
 from anki_cards_from_kindle_highlights.clippings import (
     ClippingType,
     parse_clippings_file,
@@ -377,6 +383,107 @@ def reset_generations() -> None:
     db.close()
 
     print(f"Reset {affected} records")
+
+
+def _abbreviate(text: str | None, max_len: int = 50) -> str:
+    """Abbreviate text to a maximum length with ellipsis."""
+    if text is None:
+        return ""
+    text = text.replace("\n", " ").strip()
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 3] + "..."
+
+
+@app.command("sync-to-anki")
+def sync_to_anki() -> None:
+    """Sync all unsynced cards (with pattern set) to Anki."""
+    db_path = get_db_path()
+    print(f"Database location: {db_path}")
+
+    db = ClippingsDatabase(db_path)
+    unsynced = db.get_unsynced_cards()
+
+    if not unsynced:
+        print("No unsynced cards found.")
+        db.close()
+        return
+
+    print(f"Found {len(unsynced)} cards to sync\n")
+
+    try:
+        # Setup Anki once (creates deck/models if needed)
+        print("Setting up Anki...")
+        setup_anki()
+        print()
+    except AnkiConnectError as e:
+        print(f"Error: {e}")
+        db.close()
+        raise typer.Exit(1) from e
+
+    synced = 0
+    errors = 0
+
+    for record in tqdm(unsynced, desc="Syncing to Anki"):
+        # Show current card info below progress bar
+        book_abbrev = _abbreviate(record.book_title, 30)
+        clipping_abbrev = _abbreviate(record.content, 40)
+        tqdm.write(f"  📖 {book_abbrev} | {clipping_abbrev}")
+
+        if record.front is None or record.back is None:
+            tqdm.write("    ⚠️  Skipping: missing front or back content")
+            errors += 1
+            continue
+
+        # Create AnkiCard from record
+        anki_card = AnkiCard(
+            book_title=record.book_title,
+            author=record.author or "",
+            original_clipping=record.content or "",
+            front=record.front,
+            back=record.back,
+            pattern=record.pattern or "",
+            db_id=record.id,
+        )
+
+        try:
+            card_to_anki(anki_card)
+            db.mark_synced(record.id)
+            synced += 1
+        except AnkiConnectError as e:
+            tqdm.write(f"    ❌ Error: {e}")
+            errors += 1
+
+    db.close()
+
+    print()
+    print(f"✅ Synced {synced} cards to Anki")
+    if errors > 0:
+        print(f"⚠️  Errors: {errors}")
+
+
+@app.command("set-unsynced")
+def set_unsynced() -> None:
+    """Reset synced_to_anki to False for all records."""
+    db_path = get_db_path()
+    print(f"Database location: {db_path}")
+
+    db = ClippingsDatabase(db_path)
+
+    # Confirm with user
+    confirm = questionary.confirm(
+        "This will mark all cards as unsynced (synced_to_anki = False). Continue?"
+    ).ask()
+
+    if not confirm:
+        print("Aborted.")
+        db.close()
+        return
+
+    affected = db.reset_all_synced()
+    db.close()
+
+    print(f"✅ Reset {affected} records to unsynced")
 
 
 @app.callback()
