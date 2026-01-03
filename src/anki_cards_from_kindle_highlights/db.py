@@ -262,6 +262,41 @@ class ClippingsDatabase:
         conn.commit()
         return cursor.rowcount
 
+    def get_synced_records(self) -> list[ClippingRecord]:
+        """Get all records that are marked as synced to Anki."""
+        return self._query_records("synced_to_anki = 1")
+
+    def reset_generations_for_ids(self, record_ids: list[int]) -> int:
+        """Reset LLM-generated fields for specific record IDs.
+
+        Resets pattern, front, back, generated_at, and synced_to_anki.
+
+        Args:
+            record_ids: List of record IDs to reset.
+
+        Returns:
+            The number of affected rows.
+        """
+        if not record_ids:
+            return 0
+
+        conn = self._get_connection()
+        placeholders = ",".join("?" * len(record_ids))
+        cursor = conn.execute(
+            f"""
+            UPDATE clippings
+            SET pattern = NULL,
+                front = NULL,
+                back = NULL,
+                generated_at = NULL,
+                synced_to_anki = 0
+            WHERE id IN ({placeholders})
+            """,
+            record_ids,
+        )
+        conn.commit()
+        return cursor.rowcount
+
     def _query_records(self, where_clause: str | None = None) -> list[ClippingRecord]:
         """Query records with an optional WHERE clause."""
         conn = self._get_connection()

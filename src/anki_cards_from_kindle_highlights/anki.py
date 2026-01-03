@@ -180,3 +180,38 @@ def card_to_anki(
 
     note_id = invoke("addNote", note=note)
     return note_id
+
+
+def get_cards(deck_name: str = "Kindle Highlights") -> list[AnkiCard]:
+    """Get all cards from the Anki deck.
+
+    Args:
+        deck_name: Name of the deck to query.
+
+    Returns:
+        List of AnkiCard objects from the deck.
+    """
+    # Find all note IDs in the deck
+    note_ids = invoke("findNotes", query=f'deck:"{deck_name}"')
+
+    if not note_ids:
+        return []
+
+    # Get note info for all notes
+    notes_info = invoke("notesInfo", notes=note_ids)
+
+    cards: list[AnkiCard] = []
+    for note in notes_info:
+        fields = note.get("fields", {})
+        card = AnkiCard(
+            book_title=fields.get("book_title", {}).get("value", ""),
+            author=fields.get("author", {}).get("value", ""),
+            original_clipping=fields.get("original_clipping", {}).get("value", ""),
+            front=fields.get("front", {}).get("value", ""),
+            back=fields.get("back", {}).get("value", ""),
+            pattern=fields.get("pattern", {}).get("value", ""),
+            db_id=int(fields.get("db_id", {}).get("value", "0")),
+        )
+        cards.append(card)
+
+    return cards

@@ -92,6 +92,26 @@ anki-cards-from-kindle-highlights sync-to-anki
 
 This creates a "Kindle Highlights" deck and custom note types automatically (if they don't yet exist). Cards are marked as synced in the database to prevent duplicates.
 
+### Reviewing and Managing Cards
+
+Not every generated card will be a keeper. Here's how to handle different situations:
+
+**Card is fine, but you don't want it** — Simply suspend the card in Anki. The highlight stays marked as processed and won't be regenerated.
+
+**Card quality is poor, but the highlight is good** — Delete the card in Anki, then run sync again:
+
+```bash
+anki-cards-from-kindle-highlights sync-to-anki
+```
+
+The sync command detects cards that were deleted from Anki and resets them in the database. The highlight becomes available for generation again, so you can retry with a different model or after updating your prompt:
+
+```bash
+anki-cards-from-kindle-highlights generate --model gpt-4o
+```
+
+This workflow lets you iteratively improve card quality by reviewing in Anki and regenerating the ones that don't meet your standards.
+
 ### Other Commands
 
 ```bash
