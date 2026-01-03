@@ -25,7 +25,7 @@ class ClippingRecord:
     """A clipping record with LLM-generated card data and sync status."""
 
     # Database ID
-    id: int | None
+    id: int
 
     # Clipping fields
     book_title: str

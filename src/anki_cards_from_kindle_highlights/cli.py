@@ -7,7 +7,6 @@ from typing import Annotated
 
 import questionary
 import typer
-from openai import OpenAI
 from tqdm import tqdm
 
 from anki_cards_from_kindle_highlights import __version__
@@ -22,7 +21,7 @@ from anki_cards_from_kindle_highlights.clippings import (
     parse_clippings_file,
 )
 from anki_cards_from_kindle_highlights.db import ClippingsDatabase, get_db_path
-from anki_cards_from_kindle_highlights.llm import llm_highlight_to_card
+from anki_cards_from_kindle_highlights.llm import llm_highlight_to_card_parallel_batch
 
 app = typer.Typer(
     name="anki-cards-from-kindle-highlights",
@@ -42,55 +41,6 @@ def get_prompt() -> str:
     """Load the system prompt from prompt.txt."""
     prompt_file = Path(__file__).parent / "prompt.txt"
     return prompt_file.read_text(encoding="utf-8")
-
-
-@app.command("generate-one")
-def generate_one(
-    book_title: Annotated[
-        str,
-        typer.Option("--book-title", "-b", help="Title of the book"),
-    ],
-    highlight: Annotated[
-        str,
-        typer.Option("--highlight", "-h", help="The highlight text to convert"),
-    ],
-    openai_api_key: Annotated[
-        str | None,
-        typer.Option(
-            "--openai-api-key",
-            envvar="OPENAI_API_KEY",
-            help="OpenAI API key (defaults to OPENAI_API_KEY env var)",
-        ),
-    ] = None,
-    model: Annotated[
-        str,
-        typer.Option("--model", "-m", help="OpenAI model to use"),
-    ] = "gpt-4o-2024-08-06",
-) -> None:
-    """Generate an Anki card from a single highlight (without using the database)."""
-    if openai_api_key is None:
-        print(
-            "Error: OpenAI API key is required. Set OPENAI_API_KEY or use --openai-api-key"
-        )
-        raise typer.Exit(1)
-
-    client = OpenAI(api_key=openai_api_key)
-    prompt = get_prompt()
-
-    card = llm_highlight_to_card(
-        client=client,
-        prompt=prompt,
-        book_title=book_title,
-        highlight=highlight,
-        model=model,
-    )
-
-    if card is None:
-        raise typer.Exit(1)
-
-    print(f"Pattern: {card.pattern}")
-    print(f"Front: {card.front}")
-    print(f"Back: {card.back}")
 
 
 @app.command()
@@ -114,6 +64,14 @@ def generate(
             help="Limit generation to at most this many clippings (for testing)",
         ),
     ] = None,
+    parallel_requests: Annotated[
+        int,
+        typer.Option(
+            "--parallel-requests",
+            "-p",
+            help="Maximum number of parallel LLM requests",
+        ),
+    ] = 10,
 ) -> None:
     """Generate Anki cards for unprocessed clippings in the database."""
     if openai_api_key is None:
@@ -177,39 +135,46 @@ def generate(
     else:
         print(f"Processing {len(unprocessed)} clippings\n")
 
-    client = OpenAI(api_key=openai_api_key)
     prompt = get_prompt()
 
+    # Filter out records with no content
+    records_to_process = [r for r in unprocessed if r.content is not None]
+    no_content_count = len(unprocessed) - len(records_to_process)
+
+    print(f"Using {parallel_requests} parallel requests\n")
+
+    # Process in parallel
+    results = llm_highlight_to_card_parallel_batch(
+        api_key=openai_api_key,
+        prompt=prompt,
+        records=records_to_process,
+        model=model,
+        max_parallel=parallel_requests,
+    )
+
+    # Update database with results
     generated = 0
-    skipped = 0
+    skipped = no_content_count
     errors = 0
 
-    for record in tqdm(unprocessed, desc="Processing clippings"):
-        if record.content is None:
-            skipped += 1
+    for result in results:
+        if result.error is not None:
+            errors += 1
             continue
 
-        card = llm_highlight_to_card(
-            client=client,
-            prompt=prompt,
-            book_title=record.book_title,
-            highlight=record.content,
-            model=model,
-        )
-
-        if card is None:
-            errors += 1
+        if result.card is None:
+            skipped += 1
             continue
 
         # Update the database with the LLM response (including SKIP)
         db.update_card_data(
-            record_id=record.id,
-            pattern=card.pattern,
-            front=card.front,
-            back=card.back,
+            record_id=result.record_id,
+            pattern=result.card.pattern,
+            front=result.card.front,
+            back=result.card.back,
         )
 
-        if card.pattern == "SKIP":
+        if result.card.pattern == "SKIP":
             skipped += 1
         else:
             generated += 1

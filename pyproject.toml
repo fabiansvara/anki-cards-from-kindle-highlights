@@ -29,6 +29,7 @@ dependencies = [
     "tqdm>=4.0",
     "questionary>=2.0",
     "requests>=2.0",
+    "tenacity>=8.0",
 ]
 
 [project.optional-dependencies]

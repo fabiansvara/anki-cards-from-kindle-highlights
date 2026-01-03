@@ -76,11 +76,6 @@ This creates a "Kindle Highlights" deck and custom note types automatically (if 
 ### Other Commands
 
 ```bash
-# Test a single highlight without using the database
-anki-cards-from-kindle-highlights generate-one \
-  --book-title "Thinking, Fast and Slow" \
-  --highlight "System 1 operates automatically and quickly..."
-
 # Export the database to CSV for inspection
 anki-cards-from-kindle-highlights dump --output cards.csv
 anki-cards-from-kindle-highlights dump --output cards.csv --only-generated
