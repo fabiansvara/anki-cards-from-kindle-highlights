@@ -62,6 +62,25 @@ You'll be prompted to select which books to process. The LLM analyzes each highl
 Options:
 - `--model gpt-4o` — Choose the OpenAI model (default: `gpt-4o-2024-08-06`)
 - `--max-generations 10` — Limit processing for testing
+- `--parallel-requests 20` — Number of concurrent API requests (default: 10)
+
+### Step 2 (Alternative): Batch Mode
+
+For large numbers of highlights, use OpenAI's Batch API for 50% cost savings:
+
+```bash
+# Create a batch job
+anki-cards-from-kindle-highlights generate-batch
+```
+
+This uploads your highlights to OpenAI for asynchronous processing (up to 24 hours). After the batch completes, load the results:
+
+```bash
+# Check status and load results
+anki-cards-from-kindle-highlights generate-batch --load-batch-id batch_abc123
+```
+
+If the batch is still processing, you'll be prompted to wait. Once complete, results are stored in the database just like the regular `generate` command.
 
 ### Step 3: Sync to Anki
 
