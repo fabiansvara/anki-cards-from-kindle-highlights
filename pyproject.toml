@@ -35,6 +35,9 @@ dependencies = [
     "beautifulsoup4>=4.12",
     "lxml>=5.0",
     "html2text>=2024.2",
+    "thefuzz>=0.22",
+    "rich>=13.0",
+    "textual>=0.50",
 ]
 
 [project.optional-dependencies]

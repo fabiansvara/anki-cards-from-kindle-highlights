@@ -107,7 +107,7 @@ async def _process_single_record(
             client=client,
             prompt=prompt,
             book_title=record.book_title,
-            highlight=record.content or "",
+            highlight=record.content,
             model=model,
             semaphore=semaphore,
         )
@@ -187,7 +187,7 @@ def _create_batch_request(
     record: ClippingRecord, prompt: str, model: str
 ) -> dict[str, Any] | None:
     """Create a single batch request entry for a clipping record."""
-    if record.content is None:
+    if not record.content:
         return None
 
     return {

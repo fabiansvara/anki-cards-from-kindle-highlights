@@ -29,13 +29,13 @@ class ClippingRecord:
 
     # Clipping fields
     book_title: str
-    author: str | None
+    author: str
     clipping_type: ClippingType
     page: int | None
     location_start: int
     location_end: int | None
     date_added: datetime
-    content: str | None
+    content: str
 
     # AnkiCardLLMResponse fields
     pattern: str | None
@@ -163,7 +163,7 @@ class ClippingsDatabase:
         )
         conn.commit()
 
-    def get_books_with_unprocessed(self) -> list[tuple[str, str | None, int]]:
+    def get_books_with_unprocessed(self) -> list[tuple[str, str, int]]:
         """Get all books that have unprocessed clippings.
 
         Returns a list of (book_title, author, count) tuples.
@@ -182,7 +182,7 @@ class ClippingsDatabase:
         ]
 
     def get_unprocessed_clippings(
-        self, books: list[tuple[str, str | None]] | None = None
+        self, books: list[tuple[str, str]] | None = None
     ) -> list[ClippingRecord]:
         """Get clippings that haven't been processed by the LLM yet.
 
@@ -196,15 +196,12 @@ class ClippingsDatabase:
         # Build WHERE clause for specific books
         conditions = []
         for book_title, author in books:
-            if author is None:
-                conditions.append(f"(book_title = '{book_title}' AND author IS NULL)")
-            else:
-                # Escape single quotes in strings
-                escaped_title = book_title.replace("'", "''")
-                escaped_author = author.replace("'", "''")
-                conditions.append(
-                    f"(book_title = '{escaped_title}' AND author = '{escaped_author}')"
-                )
+            # Escape single quotes in strings
+            escaped_title = book_title.replace("'", "''")
+            escaped_author = author.replace("'", "''")
+            conditions.append(
+                f"(book_title = '{escaped_title}' AND author = '{escaped_author}')"
+            )
 
         where = (
             f"pattern IS NULL AND content IS NOT NULL AND ({' OR '.join(conditions)})"
@@ -309,19 +306,44 @@ class ClippingsDatabase:
 
         return [self._row_to_record(row) for row in rows]
 
+    def get_unique_books(self) -> list[tuple[str, str]]:
+        """Get all unique (book_title, author) tuples from the database."""
+        conn = self._get_connection()
+        cursor = conn.execute("""
+            SELECT DISTINCT book_title, author
+            FROM clippings
+            ORDER BY book_title, author
+        """)
+        return [(row["book_title"], row["author"]) for row in cursor.fetchall()]
+
+    def get_clippings_for_book(
+        self, book_title: str, author: str
+    ) -> list[ClippingRecord]:
+        """Get all clippings for a specific book.
+
+        Args:
+            book_title: The book title to match.
+            author: The author name to match.
+        """
+        escaped_title = book_title.replace("'", "''")
+        escaped_author = author.replace("'", "''")
+        return self._query_records(
+            f"book_title = '{escaped_title}' AND author = '{escaped_author}'"
+        )
+
     def _row_to_record(self, row: sqlite3.Row) -> ClippingRecord:
         """Convert a database row to a ClippingRecord."""
         generated_at_str = row["generated_at"]
         return ClippingRecord(
             id=row["id"],
             book_title=row["book_title"],
-            author=row["author"],
+            author=row["author"] or "",
             clipping_type=ClippingType(row["clipping_type"]),
             page=row["page"],
             location_start=row["location_start"],
             location_end=row["location_end"],
             date_added=datetime.fromisoformat(row["date_added"]),
-            content=row["content"],
+            content=row["content"] or "",
             pattern=row["pattern"],
             front=row["front"],
             back=row["back"],

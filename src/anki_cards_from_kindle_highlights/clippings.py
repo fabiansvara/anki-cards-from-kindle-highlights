@@ -20,13 +20,13 @@ class Clipping:
     """Represents a single Kindle clipping."""
 
     book_title: str
-    author: str | None
+    author: str
     clipping_type: ClippingType
     page: int | None
     location_start: int
     location_end: int | None
     date_added: datetime
-    content: str | None
+    content: str
 
 
 # Pattern to extract author from title like "Book Title (Author Name)"
@@ -87,7 +87,7 @@ def parse_clippings_file(file_path: Path) -> list[Clipping]:
         # --- 1. Parse Title and Author ---
         header_line = lines[0].strip()
         book_title = header_line
-        author = None
+        author = ""
 
         # Split on the *last* parenthesis to handle titles that contain parentheses
         # e.g. "Book Title (Series Information) (Author Name)"
