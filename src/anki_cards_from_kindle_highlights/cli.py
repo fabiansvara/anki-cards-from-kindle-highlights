@@ -17,6 +17,7 @@ from anki_cards_from_kindle_highlights.anki import (
     get_cards,
     setup_anki,
 )
+from anki_cards_from_kindle_highlights.books import Book, books_from_calibre
 from anki_cards_from_kindle_highlights.clippings import (
     ClippingType,
     parse_clippings_file,
@@ -711,6 +712,91 @@ def set_unsynced() -> None:
     db.close()
 
     print(f"✅ Reset {affected} records to unsynced")
+
+
+@app.command("get-books")
+def get_books(
+    calibre_dir: Annotated[
+        Path,
+        typer.Option(
+            "--calibre-dir",
+            help="Path to Calibre library directory",
+            exists=True,
+            readable=True,
+        ),
+    ],
+) -> None:
+    """Browse books from a Calibre library and view their text content."""
+    try:
+        all_books = books_from_calibre(calibre_dir)
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        raise typer.Exit(1) from e
+
+    # Filter to only books with epub files
+    books_with_epub = {k: v for k, v in all_books.items() if v.epub_path is not None}
+
+    if not books_with_epub:
+        print("No books with EPUB files found.")
+        return
+
+    print(f"Found {len(books_with_epub)} books with EPUB files\n")
+
+    # Build choices for questionary with abbreviated display
+    def format_book_choice(book: "Book") -> str:
+        author = _abbreviate(book.author, 25)
+        title = _abbreviate(book.title, 50)
+        return f"{author} — {title}"
+
+    choices = [
+        questionary.Choice(
+            title=format_book_choice(book),
+            value=book,
+        )
+        for book in books_with_epub.values()
+    ]
+
+    # Sort choices by title
+    choices.sort(key=lambda c: c.title)
+
+    selected: Book | None = questionary.select(
+        "Select a book to view:",
+        choices=choices,
+    ).ask()
+
+    if selected is None:
+        print("No book selected.")
+        return
+
+    print(f"\nLoading text from: {selected.title}...")
+    text = selected.text
+
+    if text is None:
+        print("Error: Could not extract text from EPUB.")
+        raise typer.Exit(1)
+
+    # Write to temp file with UTF-8 BOM and open with default text editor
+    # This avoids encoding issues with PowerShell/cmd pagers on Windows
+    import os
+    import tempfile
+
+    # Create a safe filename from the book title
+    safe_title = "".join(
+        c if c.isalnum() or c in " -_" else "_" for c in selected.title
+    )
+    safe_title = safe_title[:50]  # Limit length
+
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        suffix=f"_{safe_title}.txt",
+        delete=False,
+    ) as f:
+        f.write(text)
+        temp_path = f.name
+
+    print(f"Opening: {temp_path}")
+    os.startfile(temp_path)
 
 
 @app.callback()

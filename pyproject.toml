@@ -9,7 +9,7 @@ description = "Prompt an LLM to generate Anki cards from Kindle highlights"
 readme = "README.md"
 license = "GPL-3.0-or-later"
 requires-python = ">=3.11"
-authors = [{ name = "Fabian Svara", email = "fabian.svara@gmail.com" }]
+authors = [{ name = "Fabian Svara", email = "fabian.svara@ariadne.ai" }]
 keywords = ["anki", "kindle", "flashcards", "llm", "spaced-repetition"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -23,6 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "typer>=0.15",
+    "click>=8.0",
     "openai>=1.0",
     "pydantic>=2.0",
     "platformdirs>=4.0",
@@ -30,6 +31,10 @@ dependencies = [
     "questionary>=2.0",
     "requests>=2.0",
     "tenacity>=8.0",
+    "ebooklib>=0.18",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+    "html2text>=2024.2",
 ]
 
 [project.optional-dependencies]
