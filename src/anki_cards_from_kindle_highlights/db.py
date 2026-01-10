@@ -1,5 +1,6 @@
 """SQLite database for storing clippings and generated Anki cards."""
 
+import os
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
@@ -11,10 +12,19 @@ from anki_cards_from_kindle_highlights.clippings import Clipping, ClippingType
 
 APP_NAME = "anki-cards-from-kindle-highlights"
 DB_FILENAME = "clippings.db"
+DB_PATH_ENV_VAR = "ANKI_KINDLE_DB_PATH"
 
 
 def get_db_path() -> Path:
-    """Get the path to the SQLite database file."""
+    """Get the path to the SQLite database file.
+
+    Checks the ANKI_KINDLE_DB_PATH environment variable first.
+    If not set, uses the default user data directory.
+    """
+    env_path = os.environ.get(DB_PATH_ENV_VAR)
+    if env_path:
+        return Path(env_path)
+
     data_dir = Path(user_data_dir(APP_NAME))
     data_dir.mkdir(parents=True, exist_ok=True)
     return data_dir / DB_FILENAME
