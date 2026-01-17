@@ -1,8 +1,4 @@
-[![Pytest](https://img.shields.io/github/actions/workflow/status/fabiansvara/anki-cards-from-kindle-highlights/tests.yml?label=tests&logo=python&logoColor=white)](https://github.com/fabiansvara/anki-cards-from-kindle-highlights/actions/workflows/tests.yml)
-
-[![Mypy](https://img.shields.io/github/actions/workflow/status/fabiansvara/anki-cards-from-kindle-highlights/mypy.yml?label=mypy&logo=python&logoColor=white)](https://github.com/fabiansvara/anki-cards-from-kindle-highlights/actions/workflows/mypy.yml)
-
-[![Ruff](https://img.shields.io/github/actions/workflow/status/fabiansvara/anki-cards-from-kindle-highlights/ruff.yml?label=ruff&logo=python&logoColor=white)](https://github.com/fabiansvara/anki-cards-from-kindle-highlights/actions/workflows/ruff.yml)
+[![Pytest](https://img.shields.io/github/actions/workflow/status/fabiansvara/anki-cards-from-kindle-highlights/tests.yml?label=tests&logo=python&logoColor=white)](https://github.com/fabiansvara/anki-cards-from-kindle-highlights/actions/workflows/tests.yml) [![Mypy](https://img.shields.io/github/actions/workflow/status/fabiansvara/anki-cards-from-kindle-highlights/mypy.yml?label=mypy&logo=python&logoColor=white)](https://github.com/fabiansvara/anki-cards-from-kindle-highlights/actions/workflows/mypy.yml) [![Ruff](https://img.shields.io/github/actions/workflow/status/fabiansvara/anki-cards-from-kindle-highlights/ruff.yml?label=ruff&logo=python&logoColor=white)](https://github.com/fabiansvara/anki-cards-from-kindle-highlights/actions/workflows/ruff.yml)
 
 # anki-cards-from-kindle-highlights
 
