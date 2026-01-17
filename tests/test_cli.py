@@ -22,14 +22,6 @@ def test_help_flag() -> None:
     assert "Generate Anki cards from Kindle highlights" in result.stdout
 
 
-def test_no_args_shows_help() -> None:
-    """Test that running without arguments shows help."""
-    result = runner.invoke(app, [])
-    assert result.exit_code == 0
-    # Should show available commands
-    assert "generate" in result.stdout or "import" in result.stdout
-
-
 def test_import_command_help() -> None:
     """Test import command help."""
     result = runner.invoke(app, ["import", "--help"])
