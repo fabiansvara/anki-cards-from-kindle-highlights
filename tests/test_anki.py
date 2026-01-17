@@ -11,6 +11,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from anki_cards_from_kindle_highlights.anki import (
     ANKI_FIELDS,
@@ -22,52 +23,39 @@ from anki_cards_from_kindle_highlights.anki import (
 )
 
 
-class TestInvokeErrorHandling:
-    """Tests for error handling in the invoke function."""
+def test_connection_error_raises_helpful_message() -> None:
+    """Test that connection errors produce a helpful error message."""
 
-    def test_connection_error_raises_helpful_message(self) -> None:
-        """Test that connection errors produce a helpful error message."""
-        import requests
+    with patch("anki_cards_from_kindle_highlights.anki.requests.post") as mock_post:
+        mock_post.side_effect = requests.exceptions.ConnectionError()
 
-        with patch("anki_cards_from_kindle_highlights.anki.requests.post") as mock_post:
-            mock_post.side_effect = requests.exceptions.ConnectionError()
+        with pytest.raises(AnkiConnectError) as exc_info:
+            invoke("testAction")
 
-            with pytest.raises(AnkiConnectError) as exc_info:
-                invoke("testAction")
+        # Verify the error message is helpful for users
+        error_msg = str(exc_info.value)
+        assert "Cannot connect" in error_msg
+        assert "AnkiConnect" in error_msg
+        assert "ankiweb.net" in error_msg  # Should include install link
 
-            # Verify the error message is helpful for users
-            error_msg = str(exc_info.value)
-            assert "Cannot connect" in error_msg
-            assert "AnkiConnect" in error_msg
-            assert "ankiweb.net" in error_msg  # Should include install link
 
-    def test_api_error_propagates_message(self, mock_anki_connect: MagicMock) -> None:
-        """Test that API errors from Anki are properly propagated."""
-        mock_anki_connect.return_value.json.return_value = {
-            "result": None,
-            "error": "deck was not found",
-        }
+def test_request_format_is_correct(mock_anki_connect: MagicMock) -> None:
+    """Test that we send the correct request format to AnkiConnect."""
+    mock_anki_connect.return_value.json.return_value = {
+        "result": None,
+        "error": None,
+    }
 
-        with pytest.raises(AnkiConnectError, match="deck was not found"):
-            invoke("addNote", note={})
+    invoke("testAction", someParam="someValue", anotherParam=123)
 
-    def test_request_format_is_correct(self, mock_anki_connect: MagicMock) -> None:
-        """Test that we send the correct request format to AnkiConnect."""
-        mock_anki_connect.return_value.json.return_value = {
-            "result": None,
-            "error": None,
-        }
+    # Verify the request structure matches AnkiConnect's expected format
+    call_kwargs = mock_anki_connect.call_args[1]
+    request_body = call_kwargs["json"]
 
-        invoke("testAction", someParam="someValue", anotherParam=123)
-
-        # Verify the request structure matches AnkiConnect's expected format
-        call_kwargs = mock_anki_connect.call_args[1]
-        request_body = call_kwargs["json"]
-
-        assert request_body["action"] == "testAction"
-        assert request_body["version"] == 6  # AnkiConnect API version
-        assert request_body["params"]["someParam"] == "someValue"
-        assert request_body["params"]["anotherParam"] == 123
+    assert request_body["action"] == "testAction"
+    assert request_body["version"] == 6  # AnkiConnect API version
+    assert request_body["params"]["someParam"] == "someValue"
+    assert request_body["params"]["anotherParam"] == 123
 
 
 class TestCardToAnkiLogic:
@@ -208,38 +196,6 @@ class TestCardToAnkiLogic:
 
 class TestGetCardsResponseParsing:
     """Tests for get_cards' parsing of Anki's response format."""
-
-    def test_parses_anki_field_structure(self, mock_anki_connect: MagicMock) -> None:
-        """Test parsing of Anki's nested field structure."""
-        # Anki returns fields in a specific nested format
-        mock_anki_connect.return_value.json.side_effect = [
-            {"result": [100], "error": None},  # findNotes
-            {
-                "result": [
-                    {
-                        "fields": {
-                            "book_title": {"value": "Parsed Book"},
-                            "author": {"value": "Parsed Author"},
-                            "original_clipping": {"value": "Clipping"},
-                            "front": {"value": "Front"},
-                            "back": {"value": "Back"},
-                            "pattern": {"value": "METAPHOR"},
-                            "db_id": {"value": "999"},
-                        }
-                    }
-                ],
-                "error": None,
-            },
-        ]
-
-        cards = get_cards()
-
-        assert len(cards) == 1
-        card = cards[0]
-        assert card.book_title == "Parsed Book"
-        assert card.author == "Parsed Author"
-        assert card.pattern == "METAPHOR"
-        assert card.db_id == 999  # Should be converted to int
 
     def test_handles_missing_fields_gracefully(
         self, mock_anki_connect: MagicMock

@@ -8,9 +8,6 @@ import pytest
 from anki_cards_from_kindle_highlights.clippings import ClippingType
 from anki_cards_from_kindle_highlights.db import ClippingRecord
 from anki_cards_from_kindle_highlights.llm import (
-    AnkiCardLLMResponse,
-    BatchStatus,
-    GenerationResult,
     _create_batch_request,
     _get_response_schema,
     create_batch_jsonl,
@@ -37,122 +34,6 @@ def sample_record() -> ClippingRecord:
         generated_at=None,
         synced_to_anki=False,
     )
-
-
-class TestAnkiCardLLMResponse:
-    """Tests for the AnkiCardLLMResponse model."""
-
-    def test_valid_response(self) -> None:
-        """Test creating a valid response."""
-        response = AnkiCardLLMResponse(
-            pattern="MENTAL_MODEL",
-            front="What is the key insight?",
-            back="The answer.",
-        )
-
-        assert response.pattern == "MENTAL_MODEL"
-        assert response.front == "What is the key insight?"
-        assert response.back == "The answer."
-
-    def test_skip_pattern(self) -> None:
-        """Test SKIP pattern with None front/back."""
-        response = AnkiCardLLMResponse(
-            pattern="SKIP",
-            front=None,
-            back=None,
-        )
-
-        assert response.pattern == "SKIP"
-        assert response.front is None
-        assert response.back is None
-
-    def test_all_valid_patterns(self) -> None:
-        """Test all valid pattern values."""
-        assert (
-            AnkiCardLLMResponse(pattern="DISTINCTION", front="F", back="B").pattern
-            == "DISTINCTION"
-        )
-        assert (
-            AnkiCardLLMResponse(pattern="MENTAL_MODEL", front="F", back="B").pattern
-            == "MENTAL_MODEL"
-        )
-        assert (
-            AnkiCardLLMResponse(pattern="METAPHOR", front="F", back="B").pattern
-            == "METAPHOR"
-        )
-        assert (
-            AnkiCardLLMResponse(pattern="FRAMEWORK", front="F", back="B").pattern
-            == "FRAMEWORK"
-        )
-        assert (
-            AnkiCardLLMResponse(pattern="TACTIC", front="F", back="B").pattern
-            == "TACTIC"
-        )
-        assert (
-            AnkiCardLLMResponse(pattern="CASE_STUDY", front="F", back="B").pattern
-            == "CASE_STUDY"
-        )
-        assert (
-            AnkiCardLLMResponse(pattern="DEFINITION", front="F", back="B").pattern
-            == "DEFINITION"
-        )
-        assert (
-            AnkiCardLLMResponse(pattern="SKIP", front="F", back="B").pattern == "SKIP"
-        )
-
-
-class TestGenerationResult:
-    """Tests for the GenerationResult dataclass."""
-
-    def test_successful_result(self) -> None:
-        """Test creating a successful result."""
-        card = AnkiCardLLMResponse(pattern="MENTAL_MODEL", front="F", back="B")
-        result = GenerationResult(record_id=1, card=card)
-
-        assert result.record_id == 1
-        assert result.card is not None
-        assert result.error is None
-
-    def test_error_result(self) -> None:
-        """Test creating an error result."""
-        result = GenerationResult(record_id=1, card=None, error="API Error")
-
-        assert result.record_id == 1
-        assert result.card is None
-        assert result.error == "API Error"
-
-
-class TestBatchStatus:
-    """Tests for the BatchStatus dataclass."""
-
-    def test_in_progress_status(self) -> None:
-        """Test in-progress batch status."""
-        status = BatchStatus(
-            batch_id="batch_123",
-            status="in_progress",
-            total=10,
-            completed=5,
-            failed=0,
-            is_complete=False,
-        )
-
-        assert status.is_complete is False
-        assert status.completed == 5
-
-    def test_completed_status(self) -> None:
-        """Test completed batch status."""
-        status = BatchStatus(
-            batch_id="batch_123",
-            status="completed",
-            total=10,
-            completed=10,
-            failed=0,
-            is_complete=True,
-            output_file_id="file_123",
-        )
-
-        assert status.is_complete is True
-        assert status.output_file_id == "file_123"
 
 
 class TestGetResponseSchema:

@@ -1,5 +1,6 @@
 """Integration tests for CLI commands with ephemeral database and mocked APIs."""
 
+import csv
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -10,16 +11,14 @@ from typer.testing import CliRunner
 from anki_cards_from_kindle_highlights.cli import app
 from anki_cards_from_kindle_highlights.clippings import Clipping, ClippingType
 from anki_cards_from_kindle_highlights.db import DB_PATH_ENV_VAR, ClippingsDatabase
+from anki_cards_from_kindle_highlights.llm import BatchStatus
 
 runner = CliRunner()
 
 
 @pytest.fixture
 def test_db_path(temp_db_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Set up a test database path via environment variable.
-
-    This is much cleaner than patching get_db_path in every module.
-    """
+    """Set up a test database path via environment variable."""
     monkeypatch.setenv(DB_PATH_ENV_VAR, str(temp_db_path))
     return temp_db_path
 
@@ -28,9 +27,13 @@ class TestImportCommand:
     """Integration tests for the import command."""
 
     def test_import_clippings_file(
-        self, test_db_path: Path, sample_clippings_file: Path
+        self,
+        test_db_path: Path,
+        sample_clippings_file: Path,
+        sample_clippings_data: list[Clipping],
     ) -> None:
         """Test importing clippings from a file."""
+
         result = runner.invoke(
             app, ["import", "--clippings-file", str(sample_clippings_file)]
         )
@@ -43,7 +46,27 @@ class TestImportCommand:
         records = db.get_all_records()
         db.close()
 
-        assert len(records) >= 1
+        # Only highlights with content are imported (not bookmarks)
+        expected_highlights = [
+            c
+            for c in sample_clippings_data
+            if c.clipping_type == ClippingType.HIGHLIGHT
+        ]
+        assert len(records) == len(expected_highlights)
+
+        # Verify content matches source clippings
+        for expected in expected_highlights:
+            matching = [
+                r
+                for r in records
+                if r.book_title == expected.book_title and r.content == expected.content
+            ]
+            assert (
+                len(matching) == 1
+            ), f"Expected to find clipping: {expected.content[:30]}..."
+            record = matching[0]
+            assert record.author == expected.author
+            assert record.location_start == expected.location_start
 
     def test_import_nonexistent_file(self, test_db_path: Path) -> None:
         """Test importing from a nonexistent file."""
@@ -73,6 +96,7 @@ class TestDumpCommand:
 
     def test_dump_with_records(self, test_db_path: Path, tmp_path: Path) -> None:
         """Test dumping database with records."""
+
         # Create database with a record
         db = ClippingsDatabase(test_db_path)
         clipping = Clipping(
@@ -93,6 +117,18 @@ class TestDumpCommand:
 
         assert result.exit_code == 0
         assert output_file.exists()
+
+        # Verify CSV contents
+        with Path(output_file).open(encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["book_title"] == clipping.book_title
+        assert row["author"] == clipping.author
+        assert row["content"] == clipping.content
+        assert row["location_start"] == str(clipping.location_start)
 
 
 class TestGenerateCommand:
@@ -203,7 +239,6 @@ class TestGenerateBatchCommand:
     def test_load_batch_not_complete(self, test_db_path: Path) -> None:
         """Test loading batch results when batch is not complete."""
         _ = test_db_path  # Fixture needed for env var side effect
-        from anki_cards_from_kindle_highlights.llm import BatchStatus
 
         with patch(
             "anki_cards_from_kindle_highlights.cli.generate_batch.get_batch_status"

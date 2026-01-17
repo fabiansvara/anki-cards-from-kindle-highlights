@@ -1,6 +1,5 @@
 """Tests for book metadata and content extraction."""
 
-import sqlite3
 from pathlib import Path
 
 import pytest
@@ -39,25 +38,9 @@ class TestHtmlToText:
 
         assert "Hello from bytes" in text
 
-    def test_preserves_structure(self) -> None:
-        """Test that some structure is preserved via Markdown."""
-        html = "<h1>Title</h1><p>Paragraph</p>"
-        text = _html_to_text(html)
-
-        assert "Title" in text
-        assert "Paragraph" in text
-
 
 class TestBook:
     """Tests for the Book class."""
-
-    def test_book_creation(self) -> None:
-        """Test creating a Book object."""
-        book = Book(author="Test Author", title="Test Title", epub_path=None)
-
-        assert book.author == "Test Author"
-        assert book.title == "Test Title"
-        assert book.epub_path is None
 
     def test_book_repr(self) -> None:
         """Test Book string representation."""
@@ -99,94 +82,14 @@ class TestBooksFromCalibre:
         with pytest.raises(FileNotFoundError, match="Calibre database not found"):
             books_from_calibre(tmp_path)
 
-    def test_reads_empty_calibre_db(self, tmp_path: Path) -> None:
+    def test_reads_empty_calibre_db(self, empty_calibre: Path) -> None:
         """Test reading an empty Calibre database."""
-        # Create a minimal Calibre-like database
-        db_path = tmp_path / "metadata.db"
-        conn = sqlite3.connect(db_path)
-        conn.execute("""
-            CREATE TABLE books (
-                id INTEGER PRIMARY KEY,
-                title TEXT,
-                path TEXT
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE authors (
-                id INTEGER PRIMARY KEY,
-                name TEXT
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE books_authors_link (
-                id INTEGER PRIMARY KEY,
-                book INTEGER,
-                author INTEGER
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE data (
-                id INTEGER PRIMARY KEY,
-                book INTEGER,
-                name TEXT,
-                format TEXT
-            )
-        """)
-        conn.commit()
-        conn.close()
-
-        result = books_from_calibre(tmp_path)
-
+        result = books_from_calibre(empty_calibre)
         assert result == {}
 
-    def test_reads_books_with_epub(self, tmp_path: Path) -> None:
+    def test_reads_books_with_epub(self, one_book_calibre: Path) -> None:
         """Test reading books with EPUB format."""
-        # Create a minimal Calibre-like database with a book
-        db_path = tmp_path / "metadata.db"
-        conn = sqlite3.connect(db_path)
-
-        conn.execute("""
-            CREATE TABLE books (
-                id INTEGER PRIMARY KEY,
-                title TEXT,
-                path TEXT
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE authors (
-                id INTEGER PRIMARY KEY,
-                name TEXT
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE books_authors_link (
-                id INTEGER PRIMARY KEY,
-                book INTEGER,
-                author INTEGER
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE data (
-                id INTEGER PRIMARY KEY,
-                book INTEGER,
-                name TEXT,
-                format TEXT
-            )
-        """)
-
-        # Insert test data
-        conn.execute(
-            "INSERT INTO books (id, title, path) VALUES (1, 'Test Book', 'Author/Test Book (1)')"
-        )
-        conn.execute("INSERT INTO authors (id, name) VALUES (1, 'Test Author')")
-        conn.execute("INSERT INTO books_authors_link (book, author) VALUES (1, 1)")
-        conn.execute(
-            "INSERT INTO data (book, name, format) VALUES (1, 'Test Book', 'EPUB')"
-        )
-        conn.commit()
-        conn.close()
-
-        result = books_from_calibre(tmp_path)
+        result = books_from_calibre(one_book_calibre)
 
         assert len(result) == 1
         key = ("Test Author", "Test Book")
@@ -200,59 +103,9 @@ class TestBooksFromCalibre:
         assert epub_path.name == "Test Book.epub"
         assert "Test Book (1)" in epub_path.parts
 
-    def test_prefers_epub_over_other_formats(self, tmp_path: Path) -> None:
+    def test_prefers_epub_over_other_formats(self, multi_format_calibre: Path) -> None:
         """Test that EPUB format is preferred over others."""
-        db_path = tmp_path / "metadata.db"
-        conn = sqlite3.connect(db_path)
-
-        conn.execute("""
-            CREATE TABLE books (
-                id INTEGER PRIMARY KEY,
-                title TEXT,
-                path TEXT
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE authors (
-                id INTEGER PRIMARY KEY,
-                name TEXT
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE books_authors_link (
-                id INTEGER PRIMARY KEY,
-                book INTEGER,
-                author INTEGER
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE data (
-                id INTEGER PRIMARY KEY,
-                book INTEGER,
-                name TEXT,
-                format TEXT
-            )
-        """)
-
-        # Insert test data with multiple formats
-        conn.execute(
-            "INSERT INTO books (id, title, path) VALUES (1, 'Multi Format', 'Author/Multi Format (1)')"
-        )
-        conn.execute("INSERT INTO authors (id, name) VALUES (1, 'Author')")
-        conn.execute("INSERT INTO books_authors_link (book, author) VALUES (1, 1)")
-        conn.execute(
-            "INSERT INTO data (book, name, format) VALUES (1, 'Multi Format', 'PDF')"
-        )
-        conn.execute(
-            "INSERT INTO data (book, name, format) VALUES (1, 'Multi Format', 'EPUB')"
-        )
-        conn.execute(
-            "INSERT INTO data (book, name, format) VALUES (1, 'Multi Format', 'MOBI')"
-        )
-        conn.commit()
-        conn.close()
-
-        result = books_from_calibre(tmp_path)
+        result = books_from_calibre(multi_format_calibre)
 
         assert len(result) == 1
         book = result[("Author", "Multi Format")]

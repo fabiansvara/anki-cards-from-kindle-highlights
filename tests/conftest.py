@@ -1,6 +1,7 @@
 """Pytest configuration and shared fixtures."""
 
 import gc
+import sqlite3
 from collections.abc import Generator
 from datetime import datetime
 from pathlib import Path
@@ -131,24 +132,181 @@ def mock_anki_connect() -> Generator[MagicMock, None, None]:
         yield mock_post
 
 
+def _create_calibre_schema(db_path: Path) -> None:
+    """Create the basic Calibre database schema."""
+
+    conn = sqlite3.connect(db_path)
+    conn.execute("""
+        CREATE TABLE books (
+            id INTEGER PRIMARY KEY,
+            title TEXT,
+            path TEXT
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE authors (
+            id INTEGER PRIMARY KEY,
+            name TEXT
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE books_authors_link (
+            id INTEGER PRIMARY KEY,
+            book INTEGER,
+            author INTEGER
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE data (
+            id INTEGER PRIMARY KEY,
+            book INTEGER,
+            name TEXT,
+            format TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
 @pytest.fixture
-def sample_clippings_file(tmp_path: Path) -> Path:
-    """Create a sample My Clippings.txt file for testing."""
-    content = """Test Book (Test Author)
-- Your Highlight on page 42 | location 100-150 | Added on Monday, 15 January 2024 10:30:00
+def empty_calibre(tmp_path: Path) -> Path:
+    """Create an empty Calibre database with just the schema."""
+    db_path = tmp_path / "metadata.db"
+    _create_calibre_schema(db_path)
+    return tmp_path
 
-This is a sample highlight from the book.
-==========
-Another Book (Another Author)
-- Your Highlight on page 10 | location 200-250 | Added on Tuesday, 16 January 2024 14:00:00
 
-Another sample highlight with some interesting content.
-==========
-Test Book (Test Author)
-- Your Bookmark on page 50 | location 300 | Added on Wednesday, 17 January 2024 09:00:00
+@pytest.fixture
+def one_book_calibre(tmp_path: Path) -> Path:
+    """Create a Calibre database with one book with EPUB format."""
+    import sqlite3
 
-==========
-"""
-    file_path = tmp_path / "My Clippings.txt"
+    db_path = tmp_path / "metadata.db"
+    _create_calibre_schema(db_path)
+
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "INSERT INTO books (id, title, path) VALUES (1, 'Test Book', 'Author/Test Book (1)')"
+    )
+    conn.execute("INSERT INTO authors (id, name) VALUES (1, 'Test Author')")
+    conn.execute("INSERT INTO books_authors_link (book, author) VALUES (1, 1)")
+    conn.execute(
+        "INSERT INTO data (book, name, format) VALUES (1, 'Test Book', 'EPUB')"
+    )
+    conn.commit()
+    conn.close()
+    return tmp_path
+
+
+@pytest.fixture
+def multi_format_calibre(tmp_path: Path) -> Path:
+    """Create a Calibre database with one book in multiple formats."""
+    import sqlite3
+
+    db_path = tmp_path / "metadata.db"
+    _create_calibre_schema(db_path)
+
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "INSERT INTO books (id, title, path) VALUES (1, 'Multi Format', 'Author/Multi Format (1)')"
+    )
+    conn.execute("INSERT INTO authors (id, name) VALUES (1, 'Author')")
+    conn.execute("INSERT INTO books_authors_link (book, author) VALUES (1, 1)")
+    conn.execute(
+        "INSERT INTO data (book, name, format) VALUES (1, 'Multi Format', 'PDF')"
+    )
+    conn.execute(
+        "INSERT INTO data (book, name, format) VALUES (1, 'Multi Format', 'EPUB')"
+    )
+    conn.execute(
+        "INSERT INTO data (book, name, format) VALUES (1, 'Multi Format', 'MOBI')"
+    )
+    conn.commit()
+    conn.close()
+    return tmp_path
+
+
+def clipping_to_kindle_format(clipping: Clipping) -> str:
+    """Serialize a Clipping object to Kindle's My Clippings.txt format."""
+    # Header: "Book Title (Author)" or just "Book Title"
+    if clipping.author:
+        header = f"{clipping.book_title} ({clipping.author})"
+    else:
+        header = clipping.book_title
+
+    # Metadata line: "- Your Highlight on page X | location Y-Z | Added on ..."
+    type_str = clipping.clipping_type.value
+    parts = [f"- Your {type_str}"]
+
+    if clipping.page is not None:
+        parts.append(f"on page {clipping.page}")
+
+    if clipping.location_end is not None:
+        parts.append(f"| location {clipping.location_start}-{clipping.location_end}")
+    else:
+        parts.append(f"| location {clipping.location_start}")
+
+    date_str = clipping.date_added.strftime("%A, %d %B %Y %H:%M:%S")
+    parts.append(f"| Added on {date_str}")
+
+    metadata = " ".join(parts)
+
+    # Content (may be empty for bookmarks)
+    return f"{header}\n{metadata}\n\n{clipping.content}\n=========="
+
+
+def clippings_to_file(clippings: list[Clipping], file_path: Path) -> None:
+    """Write clippings to a file in Kindle format."""
+    content = "\n".join(clipping_to_kindle_format(c) for c in clippings) + "\n"
     file_path.write_text(content, encoding="utf-8-sig")
+
+
+# Sample clippings used as the single source of truth for tests
+SAMPLE_CLIPPINGS = [
+    Clipping(
+        book_title="Test Book",
+        author="Test Author",
+        clipping_type=ClippingType.HIGHLIGHT,
+        page=42,
+        location_start=100,
+        location_end=150,
+        date_added=datetime(2024, 1, 15, 10, 30, 0),
+        content="This is a sample highlight from the book.",
+    ),
+    Clipping(
+        book_title="Another Book",
+        author="Another Author",
+        clipping_type=ClippingType.HIGHLIGHT,
+        page=10,
+        location_start=200,
+        location_end=250,
+        date_added=datetime(2024, 1, 16, 14, 0, 0),
+        content="Another sample highlight with some interesting content.",
+    ),
+    Clipping(
+        book_title="Test Book",
+        author="Test Author",
+        clipping_type=ClippingType.BOOKMARK,
+        page=50,
+        location_start=300,
+        location_end=None,
+        date_added=datetime(2024, 1, 17, 9, 0, 0),
+        content="",
+    ),
+]
+
+
+@pytest.fixture
+def sample_clippings_data() -> list[Clipping]:
+    """Return the sample clippings (source of truth for round-trip tests)."""
+    return SAMPLE_CLIPPINGS.copy()
+
+
+@pytest.fixture
+def sample_clippings_file(
+    tmp_path: Path, sample_clippings_data: list[Clipping]
+) -> Path:
+    """Create a sample My Clippings.txt file from sample clippings."""
+    file_path = tmp_path / "My Clippings.txt"
+    clippings_to_file(sample_clippings_data, file_path)
     return file_path

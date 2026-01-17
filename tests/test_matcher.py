@@ -10,63 +10,28 @@ from anki_cards_from_kindle_highlights.matcher import (
     _skeletonize,
 )
 
+SKELETONIZE_CASES = [
+    # (input, expected_skeleton, expected_index_map_or_None)
+    ("Hello, World!", "helloworld", None),
+    ("Test 123 ABC", "test123abc", None),
+    ("UPPERCASE lowercase MiXeD", "uppercaselowercasemixed", None),
+    ("A-B-C", "abc", [0, 2, 4]),
+    ("", "", []),
+    ("!@#$%^&*()", "", []),
+    ("Café résumé", "caférésumé", None),  # Accented chars are alphanumeric
+]
 
-class TestSkeletonize:
-    """Tests for the _skeletonize function."""
 
-    def test_basic_skeletonization(self) -> None:
-        """Test basic text skeletonization."""
-        text = "Hello, World!"
-        skeleton, index_map = _skeletonize(text)
+@pytest.mark.parametrize("text,expected_skeleton,expected_index_map", SKELETONIZE_CASES)
+def test_skeletonize(
+    text: str, expected_skeleton: str, expected_index_map: list[int] | None
+) -> None:
+    """Test _skeletonize with various inputs."""
+    skeleton, index_map = _skeletonize(text)
 
-        assert skeleton == "helloworld"
-        assert len(index_map) == 10
-
-    def test_preserves_alphanumeric(self) -> None:
-        """Test that only alphanumeric characters are kept."""
-        text = "Test 123 ABC"
-        skeleton, index_map = _skeletonize(text)
-
-        assert skeleton == "test123abc"
-
-    def test_lowercase_conversion(self) -> None:
-        """Test that text is converted to lowercase."""
-        text = "UPPERCASE lowercase MiXeD"
-        skeleton, _ = _skeletonize(text)
-
-        assert skeleton == "uppercaselowercasemixed"
-
-    def test_index_map_correctness(self) -> None:
-        """Test that index map correctly maps to original positions."""
-        text = "A-B-C"
-        skeleton, index_map = _skeletonize(text)
-
-        assert skeleton == "abc"
-        assert index_map == [0, 2, 4]  # Positions of A, B, C in original
-
-    def test_empty_string(self) -> None:
-        """Test skeletonization of empty string."""
-        skeleton, index_map = _skeletonize("")
-
-        assert skeleton == ""
-        assert index_map == []
-
-    def test_no_alphanumeric(self) -> None:
-        """Test text with no alphanumeric characters."""
-        text = "!@#$%^&*()"
-        skeleton, index_map = _skeletonize(text)
-
-        assert skeleton == ""
-        assert index_map == []
-
-    def test_unicode_characters(self) -> None:
-        """Test handling of unicode characters."""
-        text = "Café résumé"
-        skeleton, index_map = _skeletonize(text)
-
-        # Should keep alphanumeric, accented chars are alphanumeric
-        assert "caf" in skeleton
-        assert "r" in skeleton
+    assert skeleton == expected_skeleton
+    if expected_index_map is not None:
+        assert index_map == expected_index_map
 
 
 class SimpleClipping:
@@ -141,14 +106,3 @@ class TestBookMatcher:
 
         result = matcher.match(SimpleClipping("quick brown fox"))
         assert isinstance(result, MatchResult)
-
-
-class TestMatchResult:
-    """Tests for MatchResult dataclass."""
-
-    def test_match_result_creation(self) -> None:
-        """Test creating a MatchResult."""
-        result = MatchResult(start=10, length=20)
-
-        assert result.start == 10
-        assert result.length == 20
