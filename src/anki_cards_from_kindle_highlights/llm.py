@@ -58,7 +58,7 @@ class BatchStatus:
     error_file_id: str | None = None
 
 
-@retry(  # type: ignore[misc]
+@retry(
     retry=retry_if_exception_type((RateLimitError, APIError)),
     wait=wait_exponential(multiplier=1, min=1, max=60),
     stop=stop_after_attempt(5),
