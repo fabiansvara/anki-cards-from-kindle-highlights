@@ -207,7 +207,7 @@ def view_book(
     ]
 
     # Sort choices by title
-    choices.sort(key=lambda c: c.title)
+    choices.sort(key=lambda c: str(c.title or ""))
 
     selected: Book | None = questionary.select(
         "Select a book to view:",

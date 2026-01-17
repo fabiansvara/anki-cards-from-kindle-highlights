@@ -20,5 +20,16 @@ repos:
     rev: v1.8.0
     hooks:
       - id: mypy
-        additional_dependencies: [pydantic, typer, types-requests, types-tqdm, textual, pytest]
+        additional_dependencies: [
+          pydantic,
+          typer,
+          types-requests,
+          types-tqdm,
+          textual,
+          pytest,
+          ebooklib,
+          thefuzz,
+          rich,
+          tenacity
+        ]
         args: [--ignore-missing-imports]
